@@ -1,8 +1,9 @@
 # -*- coding:utf-8 -*-
 
+from functools import reduce
+
 import numpy as np
 import pandas as pd
-from functools import reduce
 
 
 ## Function to create a conditional probability table
@@ -94,9 +95,31 @@ def readFactorTablefromData(data, varnames):
 ## You can assume that the join of two factors is a valid operation.
 ## Hint: You can look up pd.merge for mergin two factors
 def joinFactors(Factor1, Factor2):
-    # your code
-
-    return []
+    # Find common variables between the two factors
+    # These are the variables we'll merge on
+    common_vars = list(set(Factor1.columns) & set(Factor2.columns) - {'probs'})
+    
+    if len(common_vars) == 0:
+        # No common variables: cross product
+        # Use cross join by creating a dummy key
+        Factor1_copy = Factor1.copy()
+        Factor2_copy = Factor2.copy()
+        Factor1_copy['_key'] = 1
+        Factor2_copy['_key'] = 1
+        joined = pd.merge(Factor1_copy, Factor2_copy, on='_key', suffixes=('_1', '_2'))
+        joined = joined.drop('_key', axis=1)
+        # Multiply probabilities
+        joined['probs'] = joined['probs_1'] * joined['probs_2']
+        joined = joined.drop(['probs_1', 'probs_2'], axis=1)
+    else:
+        # Merge on common variables
+        joined = pd.merge(Factor1, Factor2, on=common_vars, suffixes=('_1', '_2'))
+        # Multiply probabilities from both factors
+        joined['probs'] = joined['probs_1'] * joined['probs_2']
+        # Remove the individual probability columns
+        joined = joined.drop(['probs_1', 'probs_2'], axis=1)
+    
+    return joined
 
 
 ## Marginalize a variable from a factor
@@ -107,9 +130,21 @@ def joinFactors(Factor1, Factor2):
 ## Assume that hiddenVar is on the left side of the conditional.
 ## Hint: you can look can pd.groupby
 def marginalizeFactor(factorTable, hiddenVar):
-    # your code
-
-    return []
+    # Check if the variable to marginalize exists in the factor
+    if hiddenVar not in factorTable.columns:
+        return factorTable
+    
+    # Get all variables except the one to marginalize and 'probs'
+    group_vars = [col for col in factorTable.columns if col != hiddenVar and col != 'probs']
+    
+    if len(group_vars) == 0:
+        # If no variables left after marginalization, just sum all probabilities
+        result = pd.DataFrame({'probs': [factorTable['probs'].sum()]})
+    else:
+        # Group by remaining variables and sum probabilities
+        result = factorTable.groupby(group_vars, as_index=False)['probs'].sum()
+    
+    return result
 
 
 ## Update BayesNet for a set of evidence variables
@@ -120,9 +155,21 @@ def marginalizeFactor(factorTable, hiddenVar):
 ## Set the values of the evidence variables. Other values for the variables
 ## should be removed from the tables. You do not need to normalize the factors
 def evidenceUpdateNet(bayesnet, evidenceVars, evidenceVals):
-    # your code
-
-    return []
+    # Create a dictionary for evidence variables and their values
+    evidence_dict = dict(zip(evidenceVars, evidenceVals))
+    
+    # Update each factor in the network
+    updated_net = []
+    for factor in bayesnet:
+        factor_copy = factor.copy()
+        # Filter the factor based on evidence
+        for var, val in evidence_dict.items():
+            if var in factor_copy.columns:
+                # Keep only rows where the variable equals the evidence value
+                factor_copy = factor_copy[factor_copy[var] == val]
+        updated_net.append(factor_copy)
+    
+    return updated_net
 
 
 ## Run inference on a Bayesian network
@@ -141,9 +188,29 @@ def evidenceUpdateNet(bayesnet, evidenceVars, evidenceVals):
 ## appear in the table with all of their possible values. The probabilities
 ## should be normalized to sum to one.
 def inference(bayesnet, hiddenVars, evidenceVars, evidenceVals):
-    # your code
-
-    return []
+    # Step 1: Update network with evidence
+    updated_net = evidenceUpdateNet(bayesnet, evidenceVars, evidenceVals)
+    
+    # Step 2: Join all factors
+    # Start with the first factor
+    if len(updated_net) == 0:
+        return pd.DataFrame({'probs': [1.0]})
+    
+    result = updated_net[0].copy()
+    for i in range(1, len(updated_net)):
+        result = joinFactors(result, updated_net[i])
+    
+    # Step 3: Marginalize hidden variables
+    # Follow the order specified in hiddenVars
+    for var in hiddenVars:
+        result = marginalizeFactor(result, var)
+    
+    # Step 4: Normalize probabilities to sum to 1
+    total_prob = result['probs'].sum()
+    if total_prob > 0:
+        result['probs'] = result['probs'] / total_prob
+    
+    return result
 
 
 ## you can add other functions as you wish.

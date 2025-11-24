@@ -1,8 +1,15 @@
 # -*- coding:utf-8 -*-
 
-from BayesianNetworks import *
-import numpy as np
 import pandas as pd
+
+from BayesianNetworks import (
+    evidenceUpdateNet,
+    inference,
+    joinFactors,
+    marginalizeFactor,
+    readFactorTable,
+    readFactorTablefromData,
+)
 
 #############################
 ## Example Tests from Bishop `Pattern Recognition and Machine Learning` textbook on page 377
@@ -38,7 +45,7 @@ print("inference ends")
 ###########################################################################
 # RiskFactor Data Tests
 ###########################################################################
-riskFactorNet = pd.read_csv('RiskFactorsData.csv')
+riskFactorNet = pd.read_csv('data/RiskFactorsData.csv')
 
 # Create factors
 
