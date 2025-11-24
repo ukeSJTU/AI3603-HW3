@@ -1,0 +1,268 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{float}
+
+\title{AI3603 Homework 3: Bayesian Networks\\Risk Factor Analysis}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Implementation}
+
+The Bayesian network inference system was implemented in \texttt{BayesianNetworks.py} with the following core functions:
+
+\begin{itemize}
+    \item \textbf{joinFactors}: Merges two factor tables by joining on common variables and multiplying probabilities
+    \item \textbf{marginalizeFactor}: Marginalizes out a variable by summing probabilities over its values
+    \item \textbf{evidenceUpdateNet}: Updates network by filtering factors to match evidence values
+    \item \textbf{inference}: Performs variable elimination by joining all factors, marginalizing hidden variables, and normalizing
+\end{itemize}
+
+All test cases in \texttt{BayesNetworkTestScript.py} pass successfully, confirming correct implementation.
+
+\section{Network Structure and Size}
+
+The Bayesian network for health risk factors contains 12 variables with the following directed edges:
+
+\begin{itemize}
+    \item \textbf{Root}: income $\rightarrow$ smoke, exercise, long\_sit, stay\_up, bmi
+    \item \textbf{Health indicators}:
+    \begin{itemize}
+        \item bmi $\rightarrow$ bp, diabetes
+        \item smoke, exercise $\rightarrow$ cholesterol
+    \end{itemize}
+    \item \textbf{Outcomes}: bp, cholesterol $\rightarrow$ stroke, attack, angina
+\end{itemize}
+
+This structure encodes the causal assumptions: income affects lifestyle habits and body mass; habits affect intermediate health indicators; indicators affect disease outcomes.
+
+\textbf{Network size}: 192 probabilities
+\begin{itemize}
+    \item P(income): 8
+    \item P(smoke$|$income), P(exercise$|$income), P(long\_sit$|$income), P(stay\_up$|$income): 4 $\times$ 16 = 64
+    \item P(bmi$|$income): 32
+    \item P(bp$|$bmi): 16
+    \item P(cholesterol$|$smoke,exercise): 8
+    \item P(diabetes$|$bmi): 16
+    \item P(stroke$|$bp,cholesterol), P(attack$|$bp,cholesterol), P(angina$|$bp,cholesterol): 3 $\times$ 16 = 48
+\end{itemize}
+
+\textbf{Full joint distribution}: 131,072 probabilities (8$\times$2$\times$2$\times$2$\times$2$\times$4$\times$4$\times$2$\times$4$\times$2$\times$2$\times$2)
+
+\textbf{Compression ratio}: 682.67$\times$
+
+The factorized representation provides massive computational savings.
+
+\section{Health Outcomes Analysis}
+
+\subsection{Bad vs Good Habits}
+
+Table~\ref{tab:habits} shows outcome probabilities for bad habits (smoking, no exercise, long sitting, staying up late) versus good habits.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrrr}
+\toprule
+Outcome & Bad Habits & Good Habits & Difference \\
+\midrule
+Diabetes & 0.1365 & 0.1304 & +0.0061 \\
+Stroke & 0.0427 & 0.0387 & +0.0040 \\
+Attack & 0.0648 & 0.0562 & +0.0086 \\
+Angina & 0.0694 & 0.0587 & +0.0107 \\
+\bottomrule
+\end{tabular}
+\caption{Probability of health outcomes given habits}
+\label{tab:habits}
+\end{table}
+
+Bad habits increase all health risks, with the largest effect on angina (+1.07\%) and smallest on diabetes (+0.61\%).
+
+\subsection{Poor vs Good Health}
+
+Table~\ref{tab:health} shows outcome probabilities for poor health indicators (high BP, high cholesterol, obese) versus good health.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrrr}
+\toprule
+Outcome & Poor Health & Good Health & Difference \\
+\midrule
+Diabetes & 0.2439 & 0.0570 & +0.1869 \\
+Stroke & 0.0869 & 0.0143 & +0.0726 \\
+Attack & 0.1393 & 0.0189 & +0.1204 \\
+Angina & 0.1596 & 0.0154 & +0.1442 \\
+\bottomrule
+\end{tabular}
+\caption{Probability of health outcomes given health status}
+\label{tab:health}
+\end{table}
+
+Poor health indicators have a much stronger effect than habits, increasing diabetes risk by 18.7\% and angina by 14.4\%.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{assets/habits_health_comparison.png}
+\caption{Comparison of habits and health effects on outcomes}
+\end{figure}
+
+\section{Income Effect Analysis}
+
+Figure~\ref{fig:income} shows the probability of each health outcome across income levels. All outcomes show a clear negative correlation with income:
+
+\begin{itemize}
+    \item \textbf{Diabetes}: Decreases from 14.7\% (income < \$10K) to 12.3\% (income > \$75K)
+    \item \textbf{Stroke}: Decreases from 4.16\% to 3.92\%
+    \item \textbf{Attack}: Decreases from 6.17\% to 5.78\%
+    \item \textbf{Angina}: Decreases from 6.54\% to 6.08\%
+\end{itemize}
+
+Higher income is associated with better health outcomes, likely through access to healthcare, healthier lifestyles, and reduced stress.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{assets/income_effect.png}
+\caption{Effect of income level on health outcomes}
+\label{fig:income}
+\end{figure}
+
+\section{Testing Independence Assumptions}
+
+\subsection{Independence Assumption}
+
+The original network has no direct edges from habits (smoke, exercise) to outcomes (diabetes, stroke, attack, angina). This encodes a \textbf{conditional independence assumption}: given the intermediate health indicators (bp, cholesterol, bmi), the outcomes are independent of smoking and exercise habits.
+
+Formally: $P(\text{outcome} | \text{habits}, \text{indicators}) = P(\text{outcome} | \text{indicators})$
+
+This assumes habits only affect outcomes indirectly through their effects on bp, cholesterol, and bmi.
+
+\subsection{Testing the Assumption}
+
+To test this, a second network was created with direct edges from smoking and exercise to all four outcomes. Results are shown in Table~\ref{tab:network2}.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Outcome & \multicolumn{2}{c}{Network 1 (Original)} & \multicolumn{2}{c}{Network 2 (Direct Links)} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5}
+ & Bad & Good & Bad & Good \\
+\midrule
+Diabetes & 0.1365 & 0.1304 & 0.1954 & 0.1013 \\
+Stroke & 0.0427 & 0.0387 & 0.0697 & 0.0262 \\
+Attack & 0.0648 & 0.0562 & 0.1104 & 0.0334 \\
+Angina & 0.0694 & 0.0587 & 0.1067 & 0.0395 \\
+\bottomrule
+\end{tabular}
+\caption{Comparison of networks with and without direct habit links}
+\label{tab:network2}
+\end{table}
+
+Adding direct edges dramatically increases the difference between bad and good habits:
+\begin{itemize}
+    \item Diabetes: 0.61\% $\rightarrow$ 9.40\% (15.4$\times$ stronger)
+    \item Stroke: 0.40\% $\rightarrow$ 4.35\% (10.9$\times$ stronger)
+    \item Attack: 0.86\% $\rightarrow$ 7.70\% (9.0$\times$ stronger)
+    \item Angina: 1.07\% $\rightarrow$ 6.71\% (6.3$\times$ stronger)
+\end{itemize}
+
+\textbf{Conclusion}: The independence assumption is \textbf{invalid}. Smoking and exercise have direct effects on health outcomes beyond what is mediated by bp, cholesterol, and bmi. The original network significantly underestimates the impact of lifestyle habits.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{assets/network_structures.png}
+\caption{Network structure comparison}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{assets/network_difference.png}
+\caption{Impact of adding direct habit-outcome links}
+\end{figure}
+
+\section{Outcome Interactions}
+
+\subsection{Independence Between Outcomes}
+
+The previous networks have no edges between the four health outcomes (diabetes, stroke, attack, angina). This encodes another \textbf{conditional independence assumption}: given their common parents (bp, cholesterol, habits), the outcomes are independent of each other.
+
+Formally: $P(\text{stroke} | \text{diabetes}, \text{parents}) = P(\text{stroke} | \text{parents})$
+
+This assumes diabetes doesn't directly cause stroke; they only co-occur due to shared risk factors.
+
+\subsection{Testing Diabetes-Stroke Interaction}
+
+To test whether diabetes and stroke interact, a third network was created adding an edge from diabetes to stroke.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrr}
+\toprule
+Network & P(stroke=1 $|$ diabetes=1) & P(stroke=1 $|$ diabetes=3) \\
+\midrule
+Network 2 (no edge) & 0.0458 & 0.0387 \\
+Network 3 (with edge) & 0.0772 & 0.0337 \\
+\midrule
+Difference & +0.0071 & -0.0435 \\
+\bottomrule
+\end{tabular}
+\caption{Effect of diabetes on stroke probability}
+\end{table}
+
+Without the direct edge, diabetes increases stroke risk by only 0.71\% (4.58\% vs 3.87\%). With the edge, this increases to 4.35\% (7.72\% vs 3.37\%) — a 6.2$\times$ stronger effect.
+
+\textbf{Conclusion}: The independence assumption between diabetes and stroke is \textbf{invalid}. Diabetes has a direct causal effect on stroke risk beyond their common causes (bp, cholesterol). This aligns with medical knowledge that diabetes damages blood vessels and increases stroke risk.
+
+\section{Code Verification}
+
+The implementation was verified against all test cases in \texttt{BayesNetworkTestScript.py}. The test includes:
+
+\begin{itemize}
+    \item Bishop textbook car battery/fuel/gauge network examples
+    \item Factor joining with different operation orders (commutativity verification)
+    \item Marginalization operations
+    \item Evidence update functionality
+    \item Full inference with evidence and marginalization
+    \item Risk factor network queries
+\end{itemize}
+
+Figure~\ref{fig:testoutput} shows the test script output, which matches the expected results in Figure 2 of the assignment specification. All probability values are correct, confirming proper implementation of variable elimination inference.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{assets/test_screenshot.png}
+\caption{BayesNetworkTestScript.py output showing correct inference results}
+\label{fig:testoutput}
+\end{figure}
+
+Figure~\ref{fig:analysis} shows the complete analysis output for all five questions, demonstrating that the implementation correctly handles complex multi-variable queries on the health risk factor dataset.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{assets/analysis.png}
+\caption{Complete analysis output for Questions 1-5}
+\label{fig:analysis}
+\end{figure}
+
+\section{Summary}
+
+The implementation correctly performs Bayesian network inference using variable elimination. Analysis of the health risk data revealed:
+
+\begin{enumerate}
+    \item Factorized representation provides 683$\times$ compression over full joint distribution
+    \item Poor health indicators have stronger effects than bad habits (18.7\% vs 1.1\% for diabetes)
+    \item Higher income correlates with better health outcomes across all conditions
+    \item Smoking and exercise have direct effects on outcomes beyond bp/cholesterol/bmi
+    \item Diabetes directly increases stroke risk beyond shared risk factors
+\end{enumerate}
+
+The independence assumptions in the original network are too strong and underestimate the true causal relationships in health risk factors.
+
+\end{document}
